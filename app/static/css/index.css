@@ -78,4 +78,25 @@
     .form-item select {
       padding: 5px;
     }
+    
+    /* 提交按鈕樣式 */
+    .submit-btn {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      padding: 12px 30px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+    
+    .submit-btn:hover {
+      background-color: #45a049;
+    }
+    
+    .submit-btn:active {
+      background-color: #3d8b40;
+    }
   

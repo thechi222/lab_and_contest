@@ -12,3 +12,12 @@ def index(request: HttpRequest):
     }
     # render() 會自動在 app/templates/ 目錄下尋找 index.html
     return render(request, 'index.html', context)
+
+def recommand(request: HttpRequest):
+    """處理推薦頁面請求並渲染 recommand_style.html 模板"""
+    context = {
+        'title': '推薦頁面',
+        'intro': '根據您的需求推薦的風格',
+    }
+    # render() 會自動在 app/templates/ 目錄下尋找 recommand_style.html
+    return render(request, 'recommand_style.html', context)

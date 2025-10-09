@@ -32,35 +32,39 @@
     </div>
 
     <!-- 表單區塊 -->
-    <div class="form-section">
+    <form class="form-section" id="roomForm">
       <div class="form-item">
         <label>房間總坪數:</label>
-        <input type="text">
+        <input type="text" name="room_area" required>
       </div>
       <div class="form-item">
         <label>長*寬*高:</label>
-        <input type="text">
+        <input type="text" name="dimensions" required>
       </div>
       <div class="form-item">
         <label>總預算:</label>
-        <input type="text">
+        <input type="text" name="total_budget" required>
       </div>
       <div class="form-item">
         <label>分別預算:</label>
-        <input type="text">
+        <input type="text" name="separate_budget" required>
       </div>
       <div class="form-item">
         <label>特殊需求:</label>
-        <input type="text">
+        <input type="text" name="special_requirements">
       </div>
       <div class="form-item">
         <label>風格:</label>
-        <select>
+        <select name="style" required>
+          <option value="">請選擇風格</option>
           <option value="北歐風">北歐風</option>
           <option value="工業風">工業風</option>
         </select>
       </div>
-    </div>
+      <div class="form-item">
+        <button type="submit" class="submit-btn">開始推薦</button>
+      </div>
+    </form>
   </main>
 
   <script>
@@ -107,6 +111,30 @@
     // 啟用拖曳功能
     enableDragAndDrop("box1", "preview1", "input[type='file']");
     enableDragAndDrop("box2", "preview2", "input[type='file']");
+
+    // 表單提交處理
+    document.getElementById('roomForm').addEventListener('submit', function(e) {
+      e.preventDefault(); // 阻止預設表單提交行為
+      
+      // 收集表單數據
+      const formData = new FormData(this);
+      const data = {};
+      for (let [key, value] of formData.entries()) {
+        data[key] = value;
+      }
+      
+      // 收集圖片數據
+      const image1 = document.getElementById('preview1').src;
+      const image2 = document.getElementById('preview2').src;
+      
+      // 將數據存儲到 localStorage（可選，用於在推薦頁面使用）
+      localStorage.setItem('roomData', JSON.stringify(data));
+      localStorage.setItem('image1', image1);
+      localStorage.setItem('image2', image2);
+      
+      // 跳轉到推薦頁面
+      window.location.href = '/recommand/';
+    });
   </script>
 </body>
 </html>
