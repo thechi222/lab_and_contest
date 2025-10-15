@@ -5,6 +5,7 @@ import base64
 import random
 import time
 import concurrent.futures
+import re
 from typing import List, Dict, Any, Union
 
 from PIL import Image
@@ -73,13 +74,24 @@ class AIRecommendationService:
         print(f"[{time.strftime('%H:%M:%S')}] 正在檢查可用模型...")
         start_time = time.time()
 
-        available_models = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
-        preferred_models = ["gemini-2.5-pro-preview-03-25", "gemini-2.5-pro", "gemini-flash-latest"]
+        # 取得可用模型列表
+        available_models = [
+            m.name for m in genai.list_models()
+            if "generateContent" in getattr(m, 'supported_generation_methods', [])
+        ]
+        print(f"[{time.strftime('%H:%M:%S')}] 可用模型列表: {available_models}")
+
+        # 優先選擇 Gemini 2.5 系列
+        preferred_models = [
+            "gemini-2.5-pro-preview-03-25",
+            "gemini-2.5-pro",
+            "gemini-flash-latest"
+        ]
         selected_model_name = next((m for m in preferred_models if m in available_models), None)
         if not selected_model_name and available_models:
             selected_model_name = available_models[0]
         elif not selected_model_name:
-            raise RuntimeError("⚠️ 找不到可用 Gemini 模型")
+            raise RuntimeError("⚠️ 找不到任何可用 Gemini 模型")
 
         self.model = genai.GenerativeModel(selected_model_name)
         print(f"[{time.strftime('%H:%M:%S')}] 使用 Gemini 模型: {selected_model_name} (初始化耗時 {time.time() - start_time:.2f}s)")
@@ -129,6 +141,30 @@ class AIRecommendationService:
                     } for p in selected_products
                 ]
         return recommendations
+
+    def _extract_json_from_text(self, text: str):
+        """從 AI 回傳文字中安全提取 JSON"""
+        if not text:
+            return None
+
+        cleaned = re.sub(r'```(?:json)?', '', text, flags=re.IGNORECASE).strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        match = re.search(r'(\{(?:.|\s)*\})', cleaned, re.DOTALL)
+        if match:
+            candidate = match.group(1).strip().strip('` \n\t')
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                candidate_fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
+                try:
+                    return json.loads(candidate_fixed)
+                except json.JSONDecodeError:
+                    return None
+        return None
 
     def analyze_user_requirements(self, request_data: Dict[str, Any], image_payloads: List[Dict[str, Any]], retries=2, timeout_sec=150):
         """分析用戶需求，帶重試與超時控制"""
@@ -182,21 +218,21 @@ class AIRecommendationService:
                     response = future.result(timeout=timeout_sec)
 
                 print(f"[{time.strftime('%H:%M:%S')}] AI原始回應內容:")
-                print(response.text if hasattr(response, 'text') else "(無回傳內容)")
+                raw_text = response.text if hasattr(response, 'text') else str(response)
+                print(raw_text[:4000] if raw_text else "(無回傳內容)")
 
-                if not response.candidates or not response.text:
-                    raise ValueError("AI 服務回傳空內容。")
+                parsed = self._extract_json_from_text(raw_text)
+                if not parsed:
+                    raise ValueError("AI 回傳內容無法解析成 JSON。")
 
-                json_text = response.text.strip().replace('```json', '').replace('```', '').strip()
-                result = json.loads(json_text)
-                result['ai_status'] = 'completed'
-                return result
+                parsed['ai_status'] = 'completed'
+                return parsed
 
             except Exception as e:
                 print(f"[{time.strftime('%H:%M:%S')}] ⚠️ AI分析錯誤 (第 {attempt} 次): {e}")
                 if attempt <= retries:
-                    print(f"[{time.strftime('%H:%M:%S')}] 🔁 2 秒後重試...")
-                    time.sleep(2)
+                    print(f"[{time.strftime('%H:%M:%S')}] 🔁 10 秒後重試...")
+                    time.sleep(10)
                 else:
                     print(f"[{time.strftime('%H:%M:%S')}] ❌ 已達最大重試次數，回傳 fallback 結果。")
                     return self._get_default_analysis(request_data)
