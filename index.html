@@ -1,0 +1,182 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8">
+    <title>室內設計推薦系統</title>
+    <link rel="stylesheet" href="{% static 'css/index.css' %}">
+  </head>
+  
+<body>
+  <header>
+    室內設計推薦系統
+  </header>
+
+  <main>
+    <form class="form-section" id="roomForm">
+      <div class="upload-container">
+        <label class="upload-box" id="box1-label">
+          <span>上傳圖片 (實體圖)</span>
+          <input type="file" name="box1" accept="image/*" onchange="previewImage(event, 'preview1')">
+          <img id="preview1" class="preview" />
+        </label>
+
+        <label class="upload-box" id="box2-label">
+          <span>上傳圖片 (平面圖)</span>
+          <input type="file" name="box2" accept="image/*" onchange="previewImage(event, 'preview2')">
+          <img id="preview2" class="preview" />
+        </label>
+      </div>
+
+      <div class="form-item">
+        <label>房間總坪數:</label>
+        <input type="text" name="room_area" >
+      </div>
+      <div class="form-item">
+        <label>長*寬*高:</label>
+        <input type="text" name="dimensions" >
+      </div>
+      <div class="form-item">
+        <label>總預算:(必填)</label>
+        <input type="number" name="total_budget" required min="1000"> 
+      </div>
+      <div class="form-item">
+        <label>分別預算:</label>
+        <input type="text" name="separate_budget" >
+      </div>
+      <div class="form-item">
+        <label>特殊需求:</label>
+        <input type="text" name="special_requirements">
+      </div>
+      <div class="form-item">
+        <label>風格:</label>
+        <select name="style_name" id="styleSelect" >
+          <option value="">請選擇風格</option>
+          {% for style in styles %}
+          <option value="{{ style.name }}" data-description="{{ style.description }}">{{ style.name }}</option>
+          {% endfor %}
+        </select>
+        <div id="styleDescription" class="style-description"></div>
+      </div>
+      <div class="form-item">
+        <button type="submit" class="submit-btn">開始推薦</button>
+      </div>
+    </form>
+  </main>
+
+  <script>
+    // ----------------------------------------
+    // 圖片預覽與拖曳功能
+    // ----------------------------------------
+    function previewImage(event, previewId) {
+      const file = event.target.files[0];
+      displayImage(file, previewId);
+    }
+
+    function displayImage(file, previewId) {
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const img = document.getElementById(previewId);
+          img.src = e.target.result;
+          img.style.display = 'block';
+          img.previousElementSibling.style.display = 'none';
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+
+    function enableDragAndDrop(labelId, inputSelector) {
+      const label = document.getElementById(labelId);
+      const input = label.querySelector(inputSelector);
+      const previewId = label.querySelector('img').id;
+
+      label.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        label.classList.add("dragover");
+      });
+
+      label.addEventListener("dragleave", () => {
+        label.classList.remove("dragover");
+      });
+
+      label.addEventListener("drop", (e) => {
+        e.preventDefault();
+        label.classList.remove("dragover");
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          input.files = e.dataTransfer.files;
+          displayImage(file, previewId);
+        }
+      });
+    }
+
+    enableDragAndDrop("box1-label", "input[name='box1']");
+    enableDragAndDrop("box2-label", "input[name='box2']");
+
+    // 風格選擇事件
+    document.getElementById('styleSelect').addEventListener('change', function() {
+      const selectedOption = this.options[this.selectedIndex];
+      const description = selectedOption.getAttribute('data-description');
+      const descriptionDiv = document.getElementById('styleDescription');
+      
+      if (description && description !== '') {
+        descriptionDiv.textContent = description;
+        descriptionDiv.style.display = 'block';
+      } else {
+        descriptionDiv.style.display = 'none';
+      }
+    });
+
+    // ----------------------------------------
+    // 表單提交：AI 推薦並帶回坪數
+    // ----------------------------------------
+    document.getElementById('roomForm').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const submitBtn = this.querySelector('.submit-btn');
+      const originalText = submitBtn.textContent;
+      const formData = new FormData(this); 
+
+      submitBtn.textContent = 'AI分析中...';
+      submitBtn.disabled = true;
+
+      fetch('/api/ai_recommend/', { 
+        method: 'POST',
+        body: formData
+      })
+      .then(response => {
+        if (!response.ok) {
+          return response.json().then(errorData => {
+            throw new Error(errorData.error || `伺服器錯誤: ${response.status}`);
+          });
+        }
+        return response.json();
+      })
+      .then(result => {
+        console.log('🐛 Debug: AI推薦結果:', result);
+
+        if (result.success) {
+          const area = result.area; // Gemini 回傳坪數
+
+          localStorage.setItem('aiRecommendation', JSON.stringify(result));
+          
+          alert('AI推薦完成！正在跳轉到推薦頁面...');
+
+          // 帶上 area 參數跳轉
+          window.location.href = `/recommand/?area=${encodeURIComponent(area)}`;
+        } else {
+          throw new Error(result.error || 'AI 服務內部錯誤');
+        }
+      })
+      .catch(error => {
+        console.error('🐛 Debug: AI推薦錯誤:', error.message);
+        alert('AI推薦失敗：' + error.message);
+      })
+      .finally(() => {
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+      });
+    });
+  </script>
+</body>
+</html>
