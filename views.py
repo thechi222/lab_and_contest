@@ -206,7 +206,7 @@ def gemini_test(request):
     測試呼叫 Google Gemini API (相當於你提供的 curl 指令)
     """
     try:
-        GOOGLE_API_KEY = "AIzaSyCEFHtAG98fLQ8oSPMAGWiqc7b_Wao00wg"
+        GOOGLE_API_KEY = ""
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_API_KEY}"
 
         payload = {
