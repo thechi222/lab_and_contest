@@ -113,7 +113,8 @@ def ai_recommend(request):
             request.session['recommendation_result'] = recommendation_result
             request.session.save()
             print("✅ AI推薦完成，存入 session")
-            return JsonResponse({'status': 'success', 'redirect_url': '/recommand/'})
+            # ✅ 修正這裡：返回 success 讓前端自動跳轉
+            return JsonResponse({'success': True, 'redirect_url': '/recommand/'})
         else:
             error_msg = recommendation_result.get('error', 'AI 服務處理失敗')
             print(f"⚠️ AI推薦失敗: {error_msg}")
@@ -182,7 +183,7 @@ def recommand(request):
         'gemini_analysis': gemini_text,  # ✅ 新增給前端顯示
     }
     print(f"渲染 recommand.html，推薦結果: {context}")
-    return render(request, 'recommand.html', context)
+    return render(request, 'recommand_style.html', context)
 
 
 # ======================================================
