@@ -1,0 +1,84 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 室內設計推薦結果</title>
+    <link rel="stylesheet" href="{% static 'css/recommand_style.css' %}">
+</head>
+<body>
+    <!-- 頂部橫幅 -->
+    <header>AI 室內設計推薦結果</header>
+
+    <main>
+        <!-- 使用者房間坪數橫幅 -->
+        <div class="user-info-bar">
+            您的房間坪數：
+            <div class="user-area-display">{{ room_area }}</div>
+            <span class="area-value">({{ display_analysis_basis }})</span>
+        </div>
+
+        <!-- AI 推薦風格區塊 -->
+        <div class="style-section">
+            <h2>AI 推薦風格</h2>
+
+            <div class="cards-container">
+                {% for style_key, style_items in recommendations.items %}
+                    {% for item in style_items %}
+                        <div class="style-card-container">
+                            <div class="style-card {% if style_key == 'furniture' %}recommended-card{% endif %}">
+                                <!-- 卡片主要資訊 -->
+                                <div class="card-main">
+                                    <div class="style-info">
+                                        <div class="style-date">{{ item.name }}</div>
+                                        <div class="style-time">{{ item.quantity }} {{ item.unit }}</div>
+                                        <div class="style-location">{{ item.description }}</div>
+                                    </div>
+                                    <div class="style-price">NT$ {{ item.price_per_unit|floatformat:0 }}</div>
+                                </div>
+
+                                <!-- 卡片底部 -->
+                                <div class="card-footer">
+                                    <div class="style-class">{{ style_key }}</div>
+                                    <button class="select-btn" onclick="window.location.href='/product/{{ item.product_id }}/'">查看商品</button>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- AI 分析總結 -->
+        <div class="style-section" style="margin-top: 30px;">
+            <h2>AI 分析與建議</h2>
+
+            <div class="recommendation-details">
+                <div class="detail-label">建議風格：</div>
+                <div class="detail-value">{{ ai_recommendation.style_suggestions }}</div>
+            </div>
+
+            <div class="recommendation-details">
+                <div class="detail-label">空間優化建議：</div>
+                <div class="detail-value">{{ ai_recommendation.space_optimization|linebreaksbr }}</div>
+            </div>
+
+            <div class="recommendation-details">
+                <div class="detail-label">產品重點：</div>
+                <div class="detail-value">{{ ai_recommendation.product_focus|linebreaksbr }}</div>
+            </div>
+
+            <div class="recommendation-details">
+                <div class="detail-label">Gemini 坪數分析：</div>
+                <div class="detail-value">{{ gemini_analysis|linebreaksbr }}</div>
+            </div>
+
+            <div class="recommendation-details">
+                <div class="detail-label">總預算：</div>
+                <div class="detail-value">{{ total_budget }}</div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>
