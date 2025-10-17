@@ -3,7 +3,10 @@
 import os
 import sys
 
-
+import ssl, certifi
+os.environ["GRPC_DEFAULT_SSL_ROOTS_FILE_PATH"] = certifi.where()
+ssl._create_default_https_context = ssl._create_unverified_context
+print("✅ SSL 憑證初始化完成")
 def main():
     """Run administrative tasks."""
     # 🌟 請注意這裡，您的配置目錄名稱是 'set' 🌟

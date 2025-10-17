@@ -5,9 +5,10 @@ import base64
 import random
 import time
 import concurrent.futures
+import re
 from typing import List, Dict, Any, Union
 
-from PIL import Image # 【關鍵】: 導入 Pillow 庫
+from PIL import Image
 from django.core.files.uploadedfile import UploadedFile
 import google.generativeai as genai
 from google.api_core.exceptions import GoogleAPICallError 
@@ -16,45 +17,33 @@ from .product_data import PRODUCT_DATABASE
 
 
 def _uploaded_file_to_image_payload(uploaded_file: UploadedFile) -> Dict[str, Any]:
-    """將 Django UploadedFile 轉為圖片 payload，並進行壓縮和縮放。"""
-    MAX_SIZE = (1280, 1280) # 限制圖片最大邊長為 1280 像素
-    QUALITY = 85 # 壓縮品質
+    """將 Django UploadedFile 轉為圖片 payload，並進行壓縮與縮放"""
+    MAX_SIZE = (1280, 1280)
+    QUALITY = 85
     
     try:
         uploaded_file.seek(0)
         file_stream = io.BytesIO(uploaded_file.read())
         img = Image.open(file_stream)
-        
-        # 紀錄原始大小
         original_size_kb = len(file_stream.getvalue()) / 1024
 
-        # 1. 調整大小 (Resize): 使用縮略圖功能，保持長寬比
         img.thumbnail(MAX_SIZE, Image.Resampling.LANCZOS)
-        
-        # 2. 轉換為 JPEG 格式並壓縮
         output_stream = io.BytesIO()
-        # 判斷格式：如果原始是 JPEG 或 PNG，就用原格式，否則用 JPEG
+
         mime_type = getattr(uploaded_file, "content_type", None) or Image.MIME.get(img.format, "image/jpeg")
         output_format = 'JPEG'
-        
-        # 僅對 JPEG 格式圖片應用質量參數
-        if 'jpeg' in mime_type.lower() or 'jpg' in mime_type.lower():
-             img.save(output_stream, format=output_format, quality=QUALITY)
-        else:
-             # 對 PNG 等格式進行一般保存
-             img.save(output_stream, format=img.format)
-        
-        # 獲取壓縮後的數據
-        compressed_data = output_stream.getvalue()
-        
-        # 紀錄壓縮後大小
-        compressed_size_kb = len(compressed_data) / 1024
 
+        if 'jpeg' in mime_type.lower() or 'jpg' in mime_type.lower():
+            img.save(output_stream, format=output_format, quality=QUALITY)
+        else:
+            img.save(output_stream, format=img.format)
+
+        compressed_data = output_stream.getvalue()
+        compressed_size_kb = len(compressed_data) / 1024
         width, height = img.size
-        # 使用壓縮後的數據生成 data_uri
+
         data_uri = f"data:{mime_type};base64,{base64.b64encode(compressed_data).decode('utf-8')}"
-        
-        print(f"✅ 圖片壓縮完成: 原始大小約 {original_size_kb:.2f} KB -> 壓縮後約 {compressed_size_kb:.2f} KB")
+        print(f"[{time.strftime('%H:%M:%S')}] 圖片壓縮完成: 原始 {original_size_kb:.2f} KB → 壓縮 {compressed_size_kb:.2f} KB")
 
         return {
             "mime_type": mime_type,
@@ -64,7 +53,7 @@ def _uploaded_file_to_image_payload(uploaded_file: UploadedFile) -> Dict[str, An
             "filename": getattr(uploaded_file, "name", "uploaded_image")
         }
     except Exception as e:
-        print(f"處理圖片檔案 {getattr(uploaded_file, 'name', 'unknown')} 時發生錯誤: {e}")
+        print(f"[{time.strftime('%H:%M:%S')}] ❌ 處理圖片檔案 {getattr(uploaded_file,'name','unknown')} 時發生錯誤: {e}")
         raise
 
 
@@ -73,27 +62,39 @@ class AIRecommendationService:
 
     def __init__(self):
         api_key = os.environ.get("GEMINI_API_KEY") or getattr(settings, "GEMINI_API_KEY", None)
-        
-        # 載入診斷行
         if api_key and len(api_key) > 10:
-            print(f"✅ Key 載入長度檢查通過: {len(api_key)} 字元 (Key 的前五碼: {api_key[:5]}...)")
+            print(f"[{time.strftime('%H:%M:%S')}]  Key 載入成功 ({len(api_key)} 字元, 前五碼: {api_key[:5]}...)")
         else:
-            print("❌ 警告：Key 載入失敗或為空！")
-            
+            print("Key 載入失敗或為空！")
+
         if not api_key:
             raise ValueError("⚠️ GEMINI_API_KEY 未設定")
-        
-        genai.configure(api_key=api_key)
 
-        available_models = [m.name for m in genai.list_models() if "generateContent" in m.supported_generation_methods]
-        preferred_models = ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.5-pro"]
+        genai.configure(api_key=api_key)
+        print(f"[{time.strftime('%H:%M:%S')}] 正在檢查可用模型...")
+        start_time = time.time()
+
+        # 取得可用模型列表
+        available_models = [
+            m.name for m in genai.list_models()
+            if "generateContent" in getattr(m, 'supported_generation_methods', [])
+        ]
+        print(f"[{time.strftime('%H:%M:%S')}] 可用模型列表: {available_models}")
+
+        # 優先選擇 Gemini 2.5 系列
+        preferred_models = [
+            "gemini-2.5-pro-preview-03-25",
+            "gemini-2.5-pro",
+            "gemini-flash-latest"
+        ]
         selected_model_name = next((m for m in preferred_models if m in available_models), None)
         if not selected_model_name and available_models:
             selected_model_name = available_models[0]
         elif not selected_model_name:
-            raise RuntimeError("⚠️ 找不到可用 Gemini 模型")
+            raise RuntimeError("⚠️ 找不到任何可用 Gemini 模型")
+
         self.model = genai.GenerativeModel(selected_model_name)
-        print(f"✅ 使用 Gemini 模型: {selected_model_name}")
+        print(f"[{time.strftime('%H:%M:%S')}] 使用 Gemini 模型: {selected_model_name} (初始化耗時 {time.time() - start_time:.2f}s)")
 
         self.core_categories = ["flooring", "furniture", "lighting", "wallpaper"]
 
@@ -104,7 +105,7 @@ class AIRecommendationService:
             "estimated_dimensions": {
                 "area_ping": request_data.get('room_area', '無法估算'),
                 "LxWxH": request_data.get('dimensions', '無法估算'),
-                "analysis_basis": "AI 分析失敗，已返回預設數據。請檢查 API Key 或網路連線。"
+                "analysis_basis": "AI 分析失敗，返回預設數據。"
             },
             "budget_allocation": {
                 "flooring": "建議分配30%預算於地板",
@@ -112,13 +113,12 @@ class AIRecommendationService:
                 "wallpaper": "建議分配25%預算於壁紙",
                 "furniture": "建議分配25%預算於家具"
             },
-            "style_suggestions": "根據空間大小和預算選擇合適風格",
-            "space_optimization": "優化空間布局，提升使用效率",
-            "product_focus": "注重產品質量和性價比"
+            "style_suggestions": "依空間與預算選擇合適風格",
+            "space_optimization": "優化空間布局",
+            "product_focus": "注重品質與性價比"
         }
 
     def recommend_products(self, request_data: Dict[str, Any], analysis_result: Dict[str, Any]) -> Dict[str, List[Dict[str, Union[str, float]]]]:
-        """根據分析結果推薦產品"""
         style = request_data.get('style_name', 'modern').lower()
         normalized_style = {'現代風': 'modern','北歐風': 'scandinavian','工業風': 'industrial'}.get(style, 'modern')
         recommendations: Dict[str, List[Dict[str, Union[str, float]]]] = {}
@@ -142,12 +142,37 @@ class AIRecommendationService:
                 ]
         return recommendations
 
+    def _extract_json_from_text(self, text: str):
+        """從 AI 回傳文字中安全提取 JSON"""
+        if not text:
+            return None
+
+        cleaned = re.sub(r'```(?:json)?', '', text, flags=re.IGNORECASE).strip()
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+        match = re.search(r'(\{(?:.|\s)*\})', cleaned, re.DOTALL)
+        if match:
+            candidate = match.group(1).strip().strip('` \n\t')
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                candidate_fixed = re.sub(r',\s*([}\]])', r'\1', candidate)
+                try:
+                    return json.loads(candidate_fixed)
+                except json.JSONDecodeError:
+                    return None
+        return None
+
     def analyze_user_requirements(self, request_data: Dict[str, Any], image_payloads: List[Dict[str, Any]], retries=2, timeout_sec=150):
-        """分析用戶需求，帶重試與超時控制（timeout 150 秒）"""
+        """分析用戶需求，帶重試與超時控制"""
         def call_generate_content(contents):
             return self.model.generate_content(contents=contents)
 
-        for attempt in range(1, retries+2):
+        for attempt in range(1, retries + 2):
+            print(f"[{time.strftime('%H:%M:%S')}]  AI分析開始 (第 {attempt} 次嘗試)...")
             try:
                 room_area = str(request_data.get('room_area', '')).strip()
                 dimensions = str(request_data.get('dimensions', '')).strip()
@@ -155,13 +180,10 @@ class AIRecommendationService:
                 is_dimensions_missing = not dimensions
 
                 instruction = (
-                    "請分析提供的圖片，估算房間長寬高與總坪數，並說明依據，回傳 JSON。"
+                    "請分析提供的圖片，估算房間長寬高與坪數，回傳 JSON。"
                     if image_payloads and (is_area_missing or is_dimensions_missing)
-                    else "根據用戶提供資訊進行分析。"
+                    else "根據提供資訊分析。"
                 )
-
-                estimated_area = room_area if room_area else "待分析"
-                estimated_dimensions = dimensions if dimensions else "待分析"
 
                 contents = []
                 for idx, p in enumerate(image_payloads):
@@ -170,19 +192,19 @@ class AIRecommendationService:
                     contents.append(f"這是第 {idx+1} 張圖片，用於分析。")
 
                 prompt_text = f"""
-你是一位頂尖室內設計師，提供客製化設計方案。
+你是一位專業室內設計師，提供精準的設計分析。
 {instruction}
 
-## 用戶資訊
+用戶資料：
 - 風格: {request_data.get('style_name', '未指定')}
-- 總坪數: {estimated_area}
-- 長寬高: {estimated_dimensions}
-- 總預算: {request_data.get('total_budget')}
+- 總坪數: {room_area or '待分析'}
+- 長寬高: {dimensions or '待分析'}
+- 預算: {request_data.get('total_budget')}
 - 特殊需求: {request_data.get('special_requirements', '無')}
 
-## 回傳 JSON
+請輸出以下 JSON：
 {{
-  "estimated_dimensions": {{"area_ping": "AI 估算坪數", "LxWxH": "AI 估算長寬高", "analysis_basis": "依據"}},
+  "estimated_dimensions": {{"area_ping": "AI估算坪數", "LxWxH": "AI估算長寬高", "analysis_basis": "依據"}},
   "budget_allocation": {{"flooring": "...", "ceiling": "...", "wallpaper": "...", "furniture": "..."}},
   "style_suggestions": "...",
   "space_optimization": "...",
@@ -191,91 +213,63 @@ class AIRecommendationService:
 """
                 contents.append(prompt_text)
 
-                # 使用 ThreadPoolExecutor 控制超時
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
                     future = executor.submit(call_generate_content, contents)
-                    try:
-                        response = future.result(timeout=timeout_sec)
-                    except concurrent.futures.TimeoutError:
-                        raise TimeoutError("AI 服務超時")
+                    response = future.result(timeout=timeout_sec)
 
-                # 優先檢查回應候選者（Candidates）是否存在，以捕獲 Key/連線失敗
-                if not response.candidates or not response.text:
-                    
-                    finish_reason = 'API CALL FAILURE' 
-                    if response.candidates and response.candidates[0].finish_reason:
-                        finish_reason = response.candidates[0].finish_reason.name
-                        
-                    if finish_reason == 'SAFETY' or finish_reason == 'RECITATION':
-                        raise ValueError(f"AI 回應被內容過濾器攔截 (Reason: {finish_reason})，請調整輸入內容。")
-                    
-                    raise ValueError(f"AI 服務回傳空內容或無候選者 (Reason: {finish_reason})。請檢查 API Key 或網路連線。")
-                
-                json_text = response.text.strip()
-                
-                # 處理常見的 Gemini JSON 格式問題
-                if json_text.startswith('```json'):
-                    json_text = json_text.lstrip('```json').strip()
-                
-                if json_text.endswith('```'):
-                    json_text = json_text.rstrip('```').strip()
-                    
-                if json_text.startswith('```'):
-                    json_text = json_text.lstrip('```').strip()
-                
-                result = json.loads(json_text)
-                result['ai_status'] = 'completed'
-                return result
+                print(f"[{time.strftime('%H:%M:%S')}] AI原始回應內容:")
+                raw_text = response.text if hasattr(response, 'text') else str(response)
+                print(raw_text[:4000] if raw_text else "(無回傳內容)")
 
-            except (GoogleAPICallError, Exception) as e: 
-                error_message = str(e)
-                if isinstance(e, GoogleAPICallError) or "API_KEY_INVALID" in error_message or "PERMISSION_DENIED" in error_message:
-                    print(f"AI分析錯誤 (第 {attempt} 次嘗試): API KEY/權限錯誤: {e}")
-                    return self._get_default_analysis(request_data) 
-                elif "504" in error_message or "timed out" in error_message or isinstance(e, TimeoutError):
-                    print(f"AI分析錯誤 (第 {attempt} 次嘗試): 服務超時")
-                else:
-                    print(f"AI分析錯誤 (第 {attempt} 次嘗試): {error_message}")
-                
-                
+                parsed = self._extract_json_from_text(raw_text)
+                if not parsed:
+                    raise ValueError("AI 回傳內容無法解析成 JSON。")
+
+                parsed['ai_status'] = 'completed'
+                return parsed
+
+            except Exception as e:
+                print(f"[{time.strftime('%H:%M:%S')}] ⚠️ AI分析錯誤 (第 {attempt} 次): {e}")
                 if attempt <= retries:
-                    time.sleep(2)
+                    print(f"[{time.strftime('%H:%M:%S')}] 🔁 10 秒後重試...")
+                    time.sleep(10)
                 else:
-                    print("⚠️ 已達最大重試次數，使用 fallback 預設結果。")
+                    print(f"[{time.strftime('%H:%M:%S')}] ❌ 已達最大重試次數，回傳 fallback 結果。")
                     return self._get_default_analysis(request_data)
 
     def process_recommendation_request(self, request_data: Dict[str, Any]):
-        """處理完整推薦請求"""
+        start_time = time.time()
         try:
             image_files: List[UploadedFile] = request_data.pop('image_files', [])
             image_payloads = [_uploaded_file_to_image_payload(f) for f in image_files]
+            print(f"[{time.strftime('%H:%M:%S')}] 🖼️ 已載入 {len(image_payloads)} 張圖片")
 
             analysis = self.analyze_user_requirements(request_data, image_payloads)
             product_recommendations = self.recommend_products(request_data, analysis)
 
-            estimated_dims = analysis.get('estimated_dimensions', {})
-            total_budget_float = float(request_data.get('total_budget', 0)) if str(request_data.get('total_budget','')).isdigit() else 0
+            total_cost = sum(
+                rec.get('price_per_unit', 0) * float(rec.get('quantity', 1))
+                for recs in product_recommendations.values()
+                for rec in recs
+            )
 
-            recommendation_result = {
+            print(f"[{time.strftime('%H:%M:%S')}] 💰 成本計算完成，總金額約 {total_cost}")
+            print(f"[{time.strftime('%H:%M:%S')}] ✅ 推薦流程完成 (總耗時 {time.time() - start_time:.2f}s)")
+
+            return {
                 'id': 1,
-                'room_area': estimated_dims.get('area_ping', request_data.get('room_area', 'N/A')),
-                'dimensions': estimated_dims.get('LxWxH', request_data.get('dimensions', 'N/A')),
-                'total_budget': total_budget_float,
+                'room_area': analysis.get('estimated_dimensions', {}).get('area_ping', request_data.get('room_area', 'N/A')),
+                'dimensions': analysis.get('estimated_dimensions', {}).get('LxWxH', request_data.get('dimensions', 'N/A')),
+                'total_budget': float(request_data.get('total_budget', 0)) if str(request_data.get('total_budget','')).isdigit() else 0,
                 'style_name': request_data.get('style_name', '未指定'),
                 'ai_recommendation': analysis,
                 'status': 'completed',
                 'recommendations': product_recommendations,
-                'total_cost': sum(
-                    rec.get('price_per_unit',0) * float(rec.get('quantity',1))
-                    for recs in product_recommendations.values()
-                    for rec in recs
-                )
+                'total_cost': total_cost
             }
 
-            return recommendation_result
-
         except Exception as e:
-            print(f"處理推薦請求錯誤: {e}")
+            print(f"[{time.strftime('%H:%M:%S')}] ❌ 推薦流程錯誤: {e}")
             return {
                 'id': 1,
                 'status': 'failed', 

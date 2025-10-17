@@ -1,70 +1,76 @@
+import os
+import traceback
+import requests
+from typing import Dict, Any
+from dotenv import load_dotenv  # 雖然 settings.py 已經載入，但保留以防萬一
+
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
-from django.views.decorators.csrf import csrf_exempt 
-import traceback
-from typing import Dict, Any
+from django.views.decorators.csrf import csrf_exempt
 
-# 導入 AI 服務 (必須確保 ai_service.py 已經是修正後的版本)
-from .ai_service import AIRecommendationService 
+# 導入 AI 服務
+from .ai_service import AIRecommendationService
 
-# ====================================================================
-# 輔助函式 (Helper Functions)
-# ====================================================================
 
+# ======================================================
+# 輔助函式
+# ======================================================
 def _get_uploaded_files(request) -> list:
-    """從 request.FILES 收集所有圖片檔案 (支援多個欄位名稱)"""
+    """收集所有上傳圖片檔案"""
     image_files = request.FILES.getlist('image_files')
-    
-    # 支援 box1, box2 等單獨上傳的欄位
     for key in ['box1', 'box2']:
         if request.FILES.get(key):
             image_files.append(request.FILES[key])
-            
-    return image_files
+    # 去重確保不重複
+    return list(set(image_files))
 
-# ====================================================================
-# 視圖函式 (View Functions)
-# ====================================================================
 
+# ======================================================
+# 首頁
+# ======================================================
 def index(request):
-    """首頁渲染：顯示風格選項和表單"""
+    """首頁渲染"""
     style_options = ['現代風', '北歐風', '工業風', '日式風', '美式風']
-    styles = [
-        {'name': s, 'description': f'這是 {s} 的簡短描述。'} 
-        for s in style_options
-    ]
+    styles = [{'name': s, 'description': f'這是 {s} 的簡短描述。'} for s in style_options]
     initial_data = {
-        'styles': styles, 
-        'room_area': '', 
-        'dimensions': '', 
-        'total_budget': '', 
+        'styles': styles,
+        'room_area': '',
+        'dimensions': '',
+        'total_budget': '',
         'style_name': ''
     }
+    print("首頁 index 被呼叫")
     return render(request, 'index.html', {'initial_data': initial_data, 'styles': styles})
 
+
+# ======================================================
+# API: AI 推薦
+# ======================================================
 @csrf_exempt
 @require_POST
 def ai_recommend(request):
-    """
-    AI 推薦 API：處理 POST 請求，提取用戶輸入和圖片，並返回跳轉 URL。
-    """
+    """接收用戶表單與圖片，呼叫 AI 服務返回推薦結果"""
     try:
-        # 1. 提取文字資料
+        GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
+
+        if not GOOGLE_API_KEY:
+            raise ValueError("❌ 缺少 GEMINI_API_KEY，請確認 .env 檔案已正確設置")
+
         data = request.POST.copy()
         room_area = data.get('room_area', '').strip()
         dimensions = data.get('dimensions', '').strip()
         total_budget = data.get('total_budget', '').strip()
         style_name = data.get('style_name', '').strip()
-        image_files = _get_uploaded_files(request) # 這裡只收集檔案，實際處理在 AI 服務內部
+        image_files = _get_uploaded_files(request)
 
-        # 2. 驗證必要欄位
+        print(f"收到推薦請求: room_area={room_area}, total_budget={total_budget}, 圖片數量={len(image_files)}")
+
         if not total_budget:
             return JsonResponse({'success': False, 'error': '缺少必要欄位: 總預算'}, status=400)
         if not (room_area or dimensions or image_files):
             return JsonResponse({'success': False, 'error': '請提供房間坪數、長寬高或上傳圖片'}, status=400)
 
-        # 3. 準備傳給 AI 的資料結構
         ai_data: Dict[str, Any] = {
             'room_area': room_area,
             'dimensions': dimensions,
@@ -75,89 +81,223 @@ def ai_recommend(request):
             'special_requirements': data.get('special_requirements', '').strip(),
         }
 
-        print(f"收到推薦請求: 文字數據={{'room_area': '{room_area}', 'total_budget': '{total_budget}'}}，圖片數量={len(image_files)}")
-
-        # 4. 呼叫實際 AI 服務 (替換掉模擬數據區塊)
+        # 呼叫 AI 推薦服務
         service = AIRecommendationService()
         recommendation_result = service.process_recommendation_request(ai_data)
-        
-        # 5. 處理結果並跳轉
+
+        # === Gemini 坪數分析 ===
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_API_KEY}"
+            prompt = (
+                f"根據以下資料，估算房間坪數並提供推論依據：\n"
+                f"房間坪數: {room_area}\n長寬高: {dimensions}\n預算: {total_budget}\n請用繁體中文回覆。"
+            )
+
+            payload = {"contents": [{"parts": [{"text": prompt}]}]}
+            headers = {"Content-Type": "application/json"}
+
+            response = requests.post(url, headers=headers, json=payload, timeout=30)
+            response.raise_for_status()
+
+            gemini_data = response.json()
+            gemini_text = (
+                gemini_data.get("candidates", [{}])[0]
+                .get("content", {})
+                .get("parts", [{}])[0]
+                .get("text", "")
+            ) or "無法取得分析結果"
+
+            print(f"✅ Gemini 坪數分析成功: {gemini_text[:80]}...")
+            recommendation_result["gemini_analysis"] = gemini_text
+
+        except Exception as gemini_error:
+            print(f"⚠️ Gemini 坪數分析失敗: {gemini_error}")
+            recommendation_result["gemini_analysis"] = "AI 坪數分析失敗，請稍後再試。"
+
+        # === 儲存結果到 session ===
         if recommendation_result.get('status') in ['completed', 'fallback']:
-            # 即使是 'fallback' (AI分析失敗但返回預設數據)，也視為成功的 HTTP 200 響應並跳轉
             request.session['recommendation_result'] = recommendation_result
             request.session.save()
-            return JsonResponse({'status': 'success', 'redirect_url': '/recommand/'})
+            print("✅ AI推薦完成，存入 session")
+            return JsonResponse({'success': True, 'redirect_url': '/recommend/'})
         else:
-            # AI 服務內部處理失敗時的回傳 (來自 ai_service.py 的 except 區塊)
             error_msg = recommendation_result.get('error', 'AI 服務處理失敗')
             print(f"⚠️ AI推薦失敗: {error_msg}")
-            # 返回 HTTP 500 讓前端知道這是伺服器內部問題
             return JsonResponse({'success': False, 'error': error_msg}, status=500)
 
     except Exception as e:
-        # 捕獲所有意外錯誤
         error_trace = traceback.format_exc()
-        print("="*60)
+        print("=" * 60)
         print(f"FATAL: AI推薦請求發生未預期錯誤: {e}")
         print(error_trace)
-        print("="*60)
-        
-        # 【修正：針對圖片處理錯誤給予 HTTP 400 錯誤】
-        # 檢查常見的圖片處理錯誤關鍵字 (來自 ai_service.py 的 _uploaded_file_to_image_payload)
-        if "file is not a recognized image file" in str(e) or "CorruptImageError" in str(e) or 'image_files' in error_trace:
-             friendly_error = '圖片檔案無效或已損壞，請檢查圖片格式和完整性後重新上傳。'
-             return JsonResponse({'success': False, 'error': friendly_error}, status=400)
-        
-        # 【修正：處理其他所有嚴重的伺服器錯誤】
+        print("=" * 60)
+
+        if "file is not a recognized image file" in str(e) or "CorruptImageError" in str(e):
+            return JsonResponse({'success': False, 'error': '圖片檔案無效或已損壞，請檢查圖片格式後重新上傳。'}, status=400)
+
         return JsonResponse({
             'success': False,
-            'error': 'AI 服務內部錯誤，請稍後再試。', # 用戶看到的通用錯誤
-            'detail': f'系統錯誤: {str(e)}', # 供開發者除錯
-            'traceback': error_trace
+            'error': 'AI 服務內部錯誤，請稍後再試。',
+            'detail': str(e)
         }, status=500)
 
-# --------------------------------------------------------------------
+
+# ======================================================
 # 推薦結果頁面
-# --------------------------------------------------------------------
-def recommand(request):
-    """推薦結果頁面渲染 (從 session 讀取數據)"""
+# ======================================================
+# ======================================================
+# 推薦結果頁面 (修正後)
+# ======================================================
+# ======================================================
+# 推薦結果頁面 (最終修正版)
+# ======================================================
+def recommend(request):
+    """渲染推薦結果頁面"""
     result = request.session.get('recommendation_result', {})
     if not result:
+        print("⚠️ 沒有推薦結果，跳轉首頁")
         return redirect('index')
 
     ai_analysis = result.get('ai_recommendation', {})
     estimated_dims = ai_analysis.get('estimated_dimensions', {})
 
-    # 顯示數據處理
     display_area = str(estimated_dims.get('area_ping', result.get('room_area', 'N/A')))
     display_basis = estimated_dims.get('analysis_basis', 'N/A')
 
-    # 格式化總預算
     total_budget_raw = result.get('total_budget')
-    # 處理 total_budget 可能是 float 0 或數字字串的情況
-    if total_budget_raw is not None and (isinstance(total_budget_raw, (int, float)) or (isinstance(total_budget_raw, str) and total_budget_raw.isdigit())):
+    if total_budget_raw is not None and (isinstance(total_budget_raw, (int, float)) or str(total_budget_raw).isdigit()):
         total_budget_formatted = f"NT$ {float(total_budget_raw):,.0f}"
     else:
         total_budget_formatted = str(total_budget_raw) or 'N/A'
 
+    gemini_text = result.get("gemini_analysis", "無分析結果")
+
+    # --- 最終修正：處理 recommendations 結構，確保所有 key 存在 ---
+    raw_recommendations = result.get('recommendations', {})
+    processed_recommendations_by_style = {}
+    
+    # 模板中明確會存取的產品類別
+    REQUIRED_PRODUCT_CATEGORIES = ['flooring', 'wallpaper', 'ceiling']
+
+    # 1. 確定風格名稱作為外層 key
+    style_name_key = result.get('style_name', '未指定風格')
+    style_items = {
+        'style_summary': ai_analysis.get('style_suggestions', '無建議') 
+    }
+    total_cost_for_style = 0.0
+
+    # 2. 處理 AI 提供的產品數據
+    for category, products_list in raw_recommendations.items():
+        category_key = category.lower()
+        
+        if products_list and isinstance(products_list, list):
+            first_product = products_list[0] 
+            
+            price_per_unit = first_product.get('price_per_unit', 0)
+            quantity = first_product.get('quantity', 1.0)
+            
+            try:
+                product_price = float(price_per_unit) * float(quantity)
+            except (ValueError, TypeError):
+                product_price = 0.0
+            
+            product_data = {
+                'price': product_price,
+                'name': first_product.get('name', 'N/A'),
+            }
+            
+            style_items[category_key] = product_data
+            total_cost_for_style += product_price 
+
+        else:
+            style_items[category_key] = {'price': 0.0, 'name': '無推薦商品'}
+
+    # 3. 檢查並**強制補齊**模板中需要的但結果中缺失的類別
+    for required_cat in REQUIRED_PRODUCT_CATEGORIES:
+        if required_cat not in style_items:
+            # 這是解決 VariableDoesNotExist 錯誤的關鍵步驟
+            style_items[required_cat] = {'price': 0.0, 'name': 'AI 無此類別推薦'}
+
+
+    # 4. 組合最終的 context 字典
+    processed_recommendations_by_style[style_name_key] = style_items
+    # --- 最終修正：處理 recommendations 結構結束 ---
+
     context = {
         'recommendation_id': result.get('id'),
-        'room_area': display_area, 
+        'room_area': display_area,
         'dimensions': result.get('dimensions'),
         'total_budget': total_budget_formatted,
         'style_name': result.get('style_name'),
         'ai_recommendation': ai_analysis,
         'display_analysis_basis': display_basis,
-        'recommendations': result.get('recommendations', {}),
-        'total_cost': f"NT$ {result.get('total_cost', 0):,.0f}",
-        # 【修正：新增 ai_status 傳給模板，用於前端顯示 Fallback 提示】
-        'ai_status': ai_analysis.get('ai_status', 'completed') 
+        'recommendations': processed_recommendations_by_style,
+        'total_cost': f"NT$ {total_cost_for_style:,.0f}",
+        'ai_status': ai_analysis.get('ai_status', 'completed'),
+        'budget_breakdown': ai_analysis.get('budget_allocation', {
+            'flooring': 'TWD 0',
+            'ceiling': 'TWD 0',
+            'wallpaper': 'TWD 0'
+        }),
+        'gemini_analysis': gemini_text,
     }
-    return render(request, 'recommand.html', context)
 
-# --------------------------------------------------------------------
-# 推薦詳情頁（暫時功能）
-# --------------------------------------------------------------------
+    print(f"渲染 recommend_style.html，推薦結果: {context}")
+    return render(request, 'recommend_style.html', context)
+# ======================================================
+# 單個推薦詳情頁面
+# ======================================================
+# ... (此處代碼不變)
+# ======================================================
+# 單個推薦詳情頁面
+# ======================================================
 def recommendation_detail(request, recommendation_id):
-    """查看推薦詳情（暫時功能，無資料庫連結）"""
-    return render(request, 'recommendation_detail.html', {'title': '推薦詳情', 'message': '推薦詳情功能暫時不可用'})
+    """顯示單個推薦的詳細內容"""
+    result = request.session.get('recommendation_result', {})
+
+    if not result or result.get('id') != recommendation_id:
+        print(f"⚠️ 找不到 recommendation_id={recommendation_id} 的資料，跳轉首頁")
+        return redirect('index')
+
+    ai_analysis = result.get('ai_recommendation', {})
+    context = {
+        'recommendation_id': recommendation_id,
+        'ai_recommendation': ai_analysis,
+        'recommendations': result.get('recommendations', {}),
+        'total_budget': result.get('total_budget', 'N/A'),
+        'room_area': result.get('room_area', 'N/A'),
+        'style_name': result.get('style_name', ''),
+    }
+
+    print(f"渲染 recommendation_detail.html，推薦詳情: {context}")
+    return render(request, 'recommendation_detail.html', context)
+
+
+# ======================================================
+# Google Gemini API 測試
+# ======================================================
+@csrf_exempt
+def gemini_test(request):
+    """測試呼叫 Google Gemini API"""
+    try:
+        GOOGLE_API_KEY = os.getenv("GEMINI_API_KEY")
+
+        if not GOOGLE_API_KEY:
+            raise ValueError("API KEY 未設定於環境變數中")
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GOOGLE_API_KEY}"
+
+        payload = {
+            "contents": [{"parts": [{"text": "Explain how AI works in a few words"}]}]
+        }
+
+        headers = {"Content-Type": "application/json"}
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+
+        result = response.json()
+        return JsonResponse({"success": True, "response": result}, status=200)
+
+    except Exception as e:
+        print("Gemini API 呼叫失敗:", e)
+        return JsonResponse({"success": False, "error": str(e)}, status=500)
