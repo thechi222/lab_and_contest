@@ -41,6 +41,13 @@
     margin-top: 20px;
   }
 
+  /* 卡片容器包裝器 */
+  .style-card-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
   /* 風格卡片 - 機票風格 */
   .style-card {
     background-color: #fafafa;
@@ -50,6 +57,8 @@
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     cursor: pointer;
     border: 1px solid #e0e0e0;
+    position: relative;
+    z-index: 2;
   }
 
   .style-card:hover {
@@ -131,7 +140,7 @@
 
   .style-price {
     color: #f79d3d;
-    font-size: 18px;
+    font-size: 40px;
     font-weight: bold;
   }
 
@@ -147,3 +156,211 @@
     font-size: 12px;
     font-weight: bold;
   }
+
+  /* 展開區域樣式 */
+  .expand-section {
+    display: none;
+    background-color: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 20px;
+    position: relative;
+    z-index: 1;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+    margin-top: -1px;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .expand-section.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .recommendations-container {
+    display: flex;
+    gap: 15px;
+    justify-content: space-between;
+  }
+
+  /* 推薦方案卡片樣式 */
+  .recommendation-card {
+    flex: 1;
+    background-color: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    text-align: center;
+    position: relative;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .recommendation-tag {
+    background-color: #6c757d;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: bold;
+    display: inline-block;
+    margin-bottom: 15px;
+  }
+
+  .recommendation-price {
+    margin-bottom: 15px;
+  }
+
+  .recommendation-price .currency {
+    color: #666;
+    font-size: 14px;
+    font-weight: normal;
+  }
+
+  .recommendation-price .amount {
+    color: #8b4513;
+    font-size: 32px;
+    font-weight: bold;
+    margin-left: 5px;
+  }
+
+  .select-btn {
+    background-color: white;
+    border: 1px solid #8b4513;
+    color: #8b4513;
+    padding: 8px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    margin-bottom: 15px;
+    transition: all 0.3s ease;
+  }
+
+  .select-btn:hover {
+    background-color: #8b4513;
+    color: white;
+  }
+
+  .recommendation-details {
+    text-align: left;
+    margin-bottom: 8px;
+  }
+
+  .detail-label {
+    color: #666;
+    font-size: 12px;
+    margin-bottom: 2px;
+  }
+
+  .detail-value {
+    color: #ff8c00;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
+
+  /* 響應式設計 */
+  @media (max-width: 768px) {
+    .recommendations-container {
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .recommendation-card {
+      min-height: auto;
+    }
+  }
+  /* ==================================== */
+/* 新增：使用者坪數資訊橫幅樣式 */
+/* ==================================== */
+.user-info-bar {
+  background-color: #e6f7ff; /* 淺藍色背景 */
+  border: 1px solid #91d5ff;
+  padding: 15px 30px;
+  border-radius: 8px;
+  margin: 0 auto 20px auto; /* 置中並增加底部間距 */
+  max-width: 1200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #003366;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.user-area-display {
+  background-color: white;
+  border: 2px dashed #003366;
+  padding: 5px 15px;
+  margin: 0 10px;
+  border-radius: 4px;
+  font-size: 20px;
+  color: #003366;
+  min-width: 50px; /* 確保顯示區塊不會太窄 */
+  text-align: center;
+}
+
+/* ==================================== */
+/* 新增：AI 建議最小坪數強調樣式 */
+/* ==================================== */
+.area-value {
+  color: #0f13f7; 
+  font-size: 16px;
+  font-weight: bold;
+}
+
+/* ==================================== */
+/* 新增：AI 推薦卡片高亮樣式 (最適合用戶坪數的風格) */
+/* ==================================== */
+.style-card.recommended-card {
+  border: 4px solid #3f10fa; /* 使用價格的橘色作為主要強調邊框 */
+  box-shadow: 0 8px 25px rgba(247, 157, 61, 0.4); /* 更強烈的陰影效果 */
+  transform: translateY(-5px); /* 輕微上浮，強調被推薦 */
+  z-index: 3; /* 確保高亮卡片在最上層 */
+}
+
+/* 推薦卡片頭部區域強調 */
+.style-card.recommended-card .card-header {
+  background-color: #fff8f0; /* 淺橘色背景，讓頭部更醒目 */
+  border-bottom: 1px solid #f79d3d;
+}
+
+/* 推薦卡片中間主要內容區域強調 */
+.style-card.recommended-card .card-main {
+  background-color: #fff8f0;
+}
+
+/* 推薦卡片腳部強調 */
+.style-card.recommended-card .card-footer {
+  background-color: #fff8f0;
+}
+
+/* AI 預估文字加深 */
+.style-card.recommended-card .style-time {
+  color: #c7a109; /* 使用紅色，強烈提示為 AI 精選 */
+  text-shadow: 1px 1px 1px rgba(0,0,0,0.1);
+}
+
+/* 高亮卡片懸停效果：保持特殊效果 */
+.style-card.recommended-card:hover {
+  transform: translateY(-8px); /* 懸停時上浮更多 */
+  box-shadow: 0 12px 30px rgba(247, 157, 61, 0.6);
+}
+
+/* 響應式調整（如果用戶坪數橫幅在小螢幕上顯示不佳） */
+@media (max-width: 600px) {
+  .user-info-bar {
+      flex-direction: column;
+      padding: 10px 20px;
+      font-size: 16px;
+  }
+
+  .user-area-display {
+      margin: 5px 0 10px 0;
+  }
+}
