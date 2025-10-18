@@ -3,11 +3,10 @@
 from django.urls import path
 from . import views
 
-# 定義應用程式內的 URL 模式
 urlpatterns = [
     # --- 頁面路由 ---
     path('', views.index, name='index'), 
-    path('recommand/', views.recommand, name='recommand'),
+    path('recommend/', views.recommend, name='recommend'),  # 修正這裡
     path('recommendation/<int:recommendation_id>/', views.recommendation_detail, name='recommendation_detail'),
     
     # --- AI 推薦 API ---

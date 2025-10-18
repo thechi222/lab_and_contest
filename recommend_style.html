@@ -1,0 +1,147 @@
+{% load static humanize %}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 室內設計推薦結果</title>
+    <link rel="stylesheet" href="{% static 'css/recommend_style.css' %}">
+</head>
+<body>
+    <header>AI 室內設計推薦結果</header>
+
+    <main>
+        <!-- 使用者資訊 -->
+        <div class="user-info-bar">
+            您的房間坪數：
+            <div class="user-area-display">{{ room_area }}</div>
+            <span class="area-value">({{ display_analysis_basis }})</span>
+            <span class="user-budget">總預算：{{ total_budget }}</span>
+        </div>
+
+        <!-- AI 推薦風格 -->
+        <div class="style-section">
+            <h2>AI 推薦風格</h2>
+            <div class="cards-container">
+                {% if recommendations %}
+                    {% for style_name, items in recommendations.items %}
+                        <div class="style-card-container">
+                            <div class="style-card{% if style_name == recommended_style_name %} recommended-card{% endif %}" onclick="toggleExpand('{{ forloop.counter }}')">
+                                <div class="card-header">
+                                    <span class="style-name">{{ style_name|default:"推薦風格" }}</span>
+                                </div>
+                                <div class="card-main">
+                                    <div class="style-total-price">
+                                        總價: NT$ <span class="style-price-amount">{{ items.total_cost|default:0|intcomma }}</span>
+                                    </div>
+                                    <div class="action-icon">＋</div>
+                                </div>
+                                <div class="card-footer">
+                                    {{ items.style_summary|default:"風格概要：基礎裝修建議" }}
+                                </div>
+                            </div>
+
+                            <div class="expand-section" id="expand-{{ forloop.counter }}" style="display:none;">
+                                <div class="recommendations-container">
+                                    {% with product=items.plans.0.products.flooring %}
+                                    <div class="recommendation-card">
+                                        <span class="recommendation-tag">地板</span>
+                                        <div class="recommendation-price">
+                                            <span class="currency">NT$</span>
+                                            <span class="amount">{{ product.price|default:0|intcomma }}</span>
+                                        </div>
+                                        <div class="recommendation-details">
+                                            <div class="detail-label">型號：</div>
+                                            <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
+                                        </div>
+                                    </div>
+                                    {% endwith %}
+
+                                    {% with product=items.plans.0.products.wallpaper %}
+                                    <div class="recommendation-card">
+                                        <span class="recommendation-tag">壁紙/油漆</span>
+                                        <div class="recommendation-price">
+                                            <span class="currency">NT$</span>
+                                            <span class="amount">{{ product.price|default:0|intcomma }}</span>
+                                        </div>
+                                        <div class="recommendation-details">
+                                            <div class="detail-label">型號：</div>
+                                            <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
+                                        </div>
+                                    </div>
+                                    {% endwith %}
+
+                                    {% with product=items.plans.0.products.ceiling %}
+                                    <div class="recommendation-card">
+                                        <span class="recommendation-tag">天花板</span>
+                                        <div class="recommendation-price">
+                                            <span class="currency">NT$</span>
+                                            <span class="amount">{{ product.price|default:0|intcomma }}</span>
+                                        </div>
+                                        <div class="recommendation-details">
+                                            <div class="detail-label">型號：</div>
+                                            <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
+                                        </div>
+                                    </div>
+                                    {% endwith %}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p>沒有推薦商品</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- AI 分析建議 -->
+        <div class="style-section" style="margin-top: 30px;">
+            <h2>AI 分析與建議</h2>
+            <div class="recommendation-details">
+                <div class="detail-label">建議風格：</div>
+                <div class="detail-value">{{ ai_recommendation.style_suggestions|default:"N/A" }}</div>
+            </div>
+            <div class="recommendation-details">
+                <div class="detail-label">空間優化建議：</div>
+                <div class="detail-value">{{ ai_recommendation.space_optimization|default:"N/A"|linebreaksbr }}</div>
+            </div>
+            <div class="recommendation-details">
+                <div class="detail-label">產品重點：</div>
+                <div class="detail-value">{{ ai_recommendation.product_focus|default:"N/A"|linebreaksbr }}</div>
+            </div>
+            <div class="recommendation-details">
+                <div class="detail-label">Gemini 分析 (風格概述)：</div>
+                <div class="detail-value">{{ gemini_analysis|default:"無 AI 詳細分析，請檢查服務連線"|linebreaksbr }}</div>
+            </div>
+            <div class="recommendation-details">
+                <div class="detail-label">總預算：</div>
+                <div class="detail-value">{{ total_budget }}</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function toggleExpand(id) {
+            const expand = document.getElementById(`expand-${id}`);
+            const card = expand.closest('.style-card-container').querySelector('.style-card');
+            const icon = card.querySelector('.action-icon');
+
+            if (expand.style.display === 'block') {
+                expand.classList.remove('show');
+                icon.textContent = '＋';
+                setTimeout(() => {
+                    expand.style.display = 'none';
+                    card.classList.remove('expanded');
+                }, 300);
+            } else {
+                expand.style.display = 'block';
+                card.classList.add('expanded');
+                icon.textContent = '－';
+                setTimeout(() => {
+                    expand.classList.add('show');
+                }, 10);
+            }
+        }
+    </script>
+</body>
+</html>

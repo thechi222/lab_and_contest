@@ -163,7 +163,7 @@
           alert('AI推薦完成！正在跳轉到推薦頁面...');
 
           // 帶上 area 參數跳轉
-          window.location.href = `/recommand/?area=${encodeURIComponent(area)}`;
+          window.location.href = `/recommend/?area=${encodeURIComponent(area)}`;
         } else {
           throw new Error(result.error || 'AI 服務內部錯誤');
         }
