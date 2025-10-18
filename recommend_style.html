@@ -26,20 +26,19 @@
 
             <div class="cards-container">
                 {% if recommendations %}
-                    {# 遍歷所有的推薦風格 - 這裡應該只有一或兩個風格 #}
+                    {# 遍歷所有的推薦風格 (多張卡片) #}
                     {% for style_name, items in recommendations.items %}
                         <div class="style-card-container">
                             
                             {# 風格卡片主體 #}
                             <div class="style-card" onclick="toggleExpand('{{ forloop.counter }}')">
                                 <div class="card-header">
-                                    {# 修正點 1: 顯示風格名稱 #}
                                     <span class="style-name">{{ style_name|default:"推薦風格" }}</span>
                                 </div>
                                 <div class="card-main">
                                     <div class="style-total-price">
-                                        {# 修正點 2: 總價計算語法正確解析 #}
-                                        總價: NT$ <span class="style-price-amount">{{ items.wallpaper.price|default:0|add:items.flooring.price|default:0|add:items.ceiling.price|default:0|intcomma }}</span>
+                                        {# 總價計算：使用 views.py 中計算好的 total_cost 變數 #}
+                                        總價: NT$ <span class="style-price-amount">{{ items.total_cost|default:0|intcomma }}</span>
                                     </div>
                                     <div class="action-icon">＋</div>
                                 </div>
@@ -49,7 +48,7 @@
                                 </div>
                             </div>
 
-                            {# 展開區域：顯示詳細的產品推薦 (只顯示指定三個項目) #}
+                            {# 展開區域：只顯示指定三個項目 #}
                             <div class="expand-section" id="expand-{{ forloop.counter }}" style="display:none;">
                                 <div class="recommendations-container">
                                     
@@ -101,7 +100,7 @@
             </div>
         </div>
 
-        {# AI 分析與建議區塊 (保持不變) #}
+        {# AI 分析與建議區塊 #}
         <div class="style-section" style="margin-top: 30px;">
             <h2>AI 分析與建議</h2>
 
