@@ -242,7 +242,7 @@ class AIRecommendationService:
         try:
             image_files: List[UploadedFile] = request_data.pop('image_files', [])
             image_payloads = [_uploaded_file_to_image_payload(f) for f in image_files]
-            print(f"[{time.strftime('%H:%M:%S')}] 🖼️ 已載入 {len(image_payloads)} 張圖片")
+            print(f"[{time.strftime('%H:%M:%S')}]  已載入 {len(image_payloads)} 張圖片")
 
             analysis = self.analyze_user_requirements(request_data, image_payloads)
             product_recommendations = self.recommend_products(request_data, analysis)
@@ -253,8 +253,8 @@ class AIRecommendationService:
                 for rec in recs
             )
 
-            print(f"[{time.strftime('%H:%M:%S')}] 💰 成本計算完成，總金額約 {total_cost}")
-            print(f"[{time.strftime('%H:%M:%S')}] ✅ 推薦流程完成 (總耗時 {time.time() - start_time:.2f}s)")
+            print(f"[{time.strftime('%H:%M:%S')}] 成本計算完成，總金額約 {total_cost}")
+            print(f"[{time.strftime('%H:%M:%S')}] 推薦流程完成 (總耗時 {time.time() - start_time:.2f}s)")
 
             return {
                 'id': 1,

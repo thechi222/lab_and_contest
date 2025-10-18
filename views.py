@@ -142,14 +142,7 @@ def ai_recommend(request):
         }, status=500)
 
 
-# ======================================================
-# 推薦結果頁面
-# ======================================================
-# ======================================================
-# 推薦結果頁面 (修正後)
-# ======================================================
-# ======================================================
-# 推薦結果頁面 (最終修正版)
+# 推薦結果頁面 (最終穩定版：處理結構不一致問題)
 # ======================================================
 def recommend(request):
     """渲染推薦結果頁面"""
@@ -172,56 +165,94 @@ def recommend(request):
 
     gemini_text = result.get("gemini_analysis", "無分析結果")
 
-    # --- 最終修正：處理 recommendations 結構，確保所有 key 存在 ---
-    raw_recommendations = result.get('recommendations', {})
-    processed_recommendations_by_style = {}
-    
-    # 模板中明確會存取的產品類別
+    # 必須顯示的產品類別（用於總價和卡片展開區）
     REQUIRED_PRODUCT_CATEGORIES = ['flooring', 'wallpaper', 'ceiling']
 
-    # 1. 確定風格名稱作為外層 key
-    style_name_key = result.get('style_name', '未指定風格')
-    style_items = {
-        'style_summary': ai_analysis.get('style_suggestions', '無建議') 
-    }
-    total_cost_for_style = 0.0
+    # --- 關鍵修正：處理 recommendations 結構，支援多個風格 ---
+    # 預期 AI service 返回的 'recommendations' 是一個 {style_name: {category: [product]}} 的結構
+    raw_recommendations_by_style = result.get('recommendations', {})
+    processed_recommendations_by_style = {}
 
-    # 2. 處理 AI 提供的產品數據
-    for category, products_list in raw_recommendations.items():
-        category_key = category.lower()
+    # 1. 確保 raw_recommendations_by_style 是一個字典，否則使用一個 fallback 結構
+    if not isinstance(raw_recommendations_by_style, dict):
+        # 如果不是字典（例如它是一個列表），我們將它視為一個包含所有產品數據的單一風格 (回退模式)
+        fallback_style_name = result.get('style_name', 'AI 推薦風格')
         
-        if products_list and isinstance(products_list, list):
-            first_product = products_list[0] 
-            
-            price_per_unit = first_product.get('price_per_unit', 0)
-            quantity = first_product.get('quantity', 1.0)
-            
-            try:
-                product_price = float(price_per_unit) * float(quantity)
-            except (ValueError, TypeError):
-                product_price = 0.0
-            
-            product_data = {
-                'price': product_price,
-                'name': first_product.get('name', 'N/A'),
-            }
-            
-            style_items[category_key] = product_data
-            total_cost_for_style += product_price 
-
+        # ⚠️ 這裡假設如果有問題，整個 recommendations 是一個產品字典 {category: [product]}
+        # 如果它真的是一個列表，下面的處理會讓程式碼跳過。
+        style_data_fallback = raw_recommendations_by_style
+        
+        # 嘗試將其轉換為一個可迭代的單風格字典
+        if isinstance(style_data_fallback, dict):
+            raw_recommendations_by_style = {fallback_style_name: style_data_fallback}
         else:
-            style_items[category_key] = {'price': 0.0, 'name': '無推薦商品'}
+            raw_recommendations_by_style = {}
+            print(f"⚠️ recommendations 結構異常 ({type(style_data_fallback)})，無法轉換為字典，將顯示空推薦。")
+            
 
-    # 3. 檢查並**強制補齊**模板中需要的但結果中缺失的類別
-    for required_cat in REQUIRED_PRODUCT_CATEGORIES:
-        if required_cat not in style_items:
-            # 這是解決 VariableDoesNotExist 錯誤的關鍵步驟
-            style_items[required_cat] = {'price': 0.0, 'name': 'AI 無此類別推薦'}
+    # 2. 遍歷所有風格
+    for style_name, style_data in raw_recommendations_by_style.items():
+        
+        # 2a. 再次檢查 style_data 是否為字典，這是防止 'list' object has no attribute 'get' 的關鍵
+        if not isinstance(style_data, dict):
+            print(f"⚠️ 風格 '{style_name}' 的數據不是字典 ({type(style_data)})，已跳過。")
+            continue
+
+        style_items = {
+            'style_summary': style_data.get('style_summary', ai_analysis.get('style_suggestions', '無建議')),
+        }
+        total_cost_for_style = 0.0
+
+        # 3. 處理該風格下的產品數據
+        for category, products_list in style_data.items():
+            
+            if category == 'style_summary':
+                continue
+                
+            category_key = category.lower()
+            
+            # 確保 product_list 是有效的列表
+            if products_list and isinstance(products_list, list):
+                first_product = products_list[0] 
+                
+                # 確保 first_product 是字典，防止 product.get 再次出錯
+                if not isinstance(first_product, dict):
+                     print(f"⚠️ 產品清單中元素不是字典，已跳過。")
+                     continue
+                
+                price_per_unit = first_product.get('price_per_unit', 0)
+                quantity = first_product.get('quantity', 1.0)
+                
+                try:
+                    product_price = float(price_per_unit) * float(quantity)
+                except (ValueError, TypeError):
+                    product_price = 0.0
+                
+                product_data = {
+                    'price': product_price,
+                    'name': first_product.get('name', 'N/A'),
+                }
+                
+                style_items[category_key] = product_data
+                
+                # 關鍵：只對指定的三個類別進行總價累計
+                if category_key in REQUIRED_PRODUCT_CATEGORIES:
+                    total_cost_for_style += product_price 
+
+            else:
+                style_items[category_key] = {'price': 0.0, 'name': '無推薦商品'}
 
 
-    # 4. 組合最終的 context 字典
-    processed_recommendations_by_style[style_name_key] = style_items
-    # --- 最終修正：處理 recommendations 結構結束 ---
+        # 4. 檢查並強制補齊模板中需要的但結果中缺失的三個硬裝類別
+        for required_cat in REQUIRED_PRODUCT_CATEGORIES:
+            if required_cat not in style_items:
+                style_items[required_cat] = {'price': 0.0, 'name': 'AI 無此類別推薦'}
+        
+        style_items['total_cost'] = total_cost_for_style
+
+        # 組合最終的 context 字典：{風格名稱: {產品數據...}}
+        processed_recommendations_by_style[style_name] = style_items
+    # --- 修正結束 ---
 
     context = {
         'recommendation_id': result.get('id'),
@@ -231,23 +262,14 @@ def recommend(request):
         'style_name': result.get('style_name'),
         'ai_recommendation': ai_analysis,
         'display_analysis_basis': display_basis,
-        'recommendations': processed_recommendations_by_style,
-        'total_cost': f"NT$ {total_cost_for_style:,.0f}",
+        'recommendations': processed_recommendations_by_style, # 傳遞多風格結構
+        'total_cost': total_budget_formatted, 
         'ai_status': ai_analysis.get('ai_status', 'completed'),
-        'budget_breakdown': ai_analysis.get('budget_allocation', {
-            'flooring': 'TWD 0',
-            'ceiling': 'TWD 0',
-            'wallpaper': 'TWD 0'
-        }),
         'gemini_analysis': gemini_text,
     }
 
     print(f"渲染 recommend_style.html，推薦結果: {context}")
     return render(request, 'recommend_style.html', context)
-# ======================================================
-# 單個推薦詳情頁面
-# ======================================================
-# ... (此處代碼不變)
 # ======================================================
 # 單個推薦詳情頁面
 # ======================================================
