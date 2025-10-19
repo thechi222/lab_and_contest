@@ -32,7 +32,7 @@
                                 </div>
                                 <div class="card-main">
                                     <div class="style-total-price">
-                                        總價: NT$ <span class="style-price-amount">{{ items.total_cost|default:0|intcomma }}</span>
+                                         NT$ <span class="style-price-amount">{{ items.total_cost|default:0|intcomma }}起</span>
                                     </div>
                                     <div class="action-icon">＋</div>
                                 </div>
@@ -41,25 +41,18 @@
                                 </div>
                             </div>
 
+                            <!-- 展開區塊：三個方案 -->
                             <div class="expand-section" id="expand-{{ forloop.counter }}" style="display:none;">
                                 <div class="recommendations-container">
-                                    {% with product=items.plans.0.items.flooring %}
+                                    {% for plan in items.plans %}
                                     <div class="recommendation-card">
-                                        <span class="recommendation-tag">地板</span>
-                                        <div class="recommendation-price">
-                                            <span class="currency">NT$</span>
-                                            <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
+                                        <h4 style="margin-bottom: 10px;">方案 {{ forloop.counter }}</h4>
+                                        <div class="plan-total-price" style="margin-bottom: 10px;">
+                                            總價: NT$ <span class="amount">{{ plan.total_cost|default:0|intcomma }}</span>
                                         </div>
-                                        <div class="recommendation-details">
-                                            <div class="detail-label">型號：</div>
-                                            <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
-                                        </div>
-                                    </div>
-                                    {% endwith %}
 
-                                    {% with product=items.plans.0.items.wallpaper_塗料 %}
-                                    <div class="recommendation-card">
-                                        <span class="recommendation-tag">壁紙/油漆</span>
+                                        {% with product=plan.items.flooring %}
+                                        <div class="recommendation-tag">地板</div>
                                         <div class="recommendation-price">
                                             <span class="currency">NT$</span>
                                             <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
@@ -68,12 +61,10 @@
                                             <div class="detail-label">型號：</div>
                                             <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
                                         </div>
-                                    </div>
-                                    {% endwith %}
+                                        {% endwith %}
 
-                                    {% with product=items.plans.0.items.ceiling %}
-                                    <div class="recommendation-card">
-                                        <span class="recommendation-tag">天花板</span>
+                                        {% with product=plan.items.wallpaper_塗料 %}
+                                        <div class="recommendation-tag">壁紙/油漆</div>
                                         <div class="recommendation-price">
                                             <span class="currency">NT$</span>
                                             <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
@@ -82,8 +73,21 @@
                                             <div class="detail-label">型號：</div>
                                             <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
                                         </div>
+                                        {% endwith %}
+
+                                        {% with product=plan.items.ceiling %}
+                                        <div class="recommendation-tag">天花板</div>
+                                        <div class="recommendation-price">
+                                            <span class="currency">NT$</span>
+                                            <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
+                                        </div>
+                                        <div class="recommendation-details">
+                                            <div class="detail-label">型號：</div>
+                                            <div class="detail-value">{{ product.name|default:"無推薦商品" }} ({{ product.unit|default:'件' }})</div>
+                                        </div>
+                                        {% endwith %}
                                     </div>
-                                    {% endwith %}
+                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
