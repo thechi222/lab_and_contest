@@ -48,7 +48,7 @@
                                         <span class="recommendation-tag">地板</span>
                                         <div class="recommendation-price">
                                             <span class="currency">NT$</span>
-                                            <span class="amount">{{ product.price|default:0|intcomma }}</span>
+                                            <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
                                         </div>
                                         <div class="recommendation-details">
                                             <div class="detail-label">型號：</div>
@@ -62,7 +62,7 @@
                                         <span class="recommendation-tag">壁紙/油漆</span>
                                         <div class="recommendation-price">
                                             <span class="currency">NT$</span>
-                                            <span class="amount">{{ product.price|default:0|intcomma }}</span>
+                                            <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
                                         </div>
                                         <div class="recommendation-details">
                                             <div class="detail-label">型號：</div>
@@ -76,7 +76,7 @@
                                         <span class="recommendation-tag">天花板</span>
                                         <div class="recommendation-price">
                                             <span class="currency">NT$</span>
-                                            <span class="amount">{{ product.price|default:0|intcomma }}</span>
+                                            <span class="amount">{{ product.price_per_unit|default:0|intcomma }}</span>
                                         </div>
                                         <div class="recommendation-details">
                                             <div class="detail-label">型號：</div>
