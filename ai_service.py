@@ -171,15 +171,38 @@ class AIRecommendationService:
         if not isinstance(style_suggestions, list) or len(style_suggestions) < 4:
             style_suggestions = ['modern','scandinavian','industrial','japanese','minimal','american'][:6]
 
+        # 中文風格對應資料庫英文 style
+        STYLE_MAPPING = {
+            '日式現代風 (和モダン)': 'japanese',
+            '北歐風格 (Scandinavian)': 'scandinavian',
+            '現代風 (Modern)': 'modern',
+            '工業風 (Industrial)': 'industrial',
+            '美式風 (American)': 'american',
+            '英式風 (English)': 'english',
+            '鄉村風 (Country)': 'country',
+            '無印風格 (Muji Style)': 'modern',
+            '極簡主義 (Minimalism)': 'modern',
+            '輕工業風 (Light Industrial)': 'industrial',
+        }
+
+        # 所有資料庫已有風格
+        AVAILABLE_STYLES = list(set(p['style'] for p in PRODUCT_DATABASE))
+
         for style_entry in style_suggestions[:6]:
             if isinstance(style_entry, dict):
                 style_name = style_entry.get('name', 'unknown')
                 style_intro = style_entry.get('description', '')
-                normalized_style = style_name.lower()
             else:
                 style_name = style_entry
                 style_intro = ''
-                normalized_style = style_name.lower()
+
+            # 使用對應表取得資料庫 style
+            normalized_style = STYLE_MAPPING.get(style_name)
+            if not normalized_style:
+                # 未對應時自動匹配最相似的資料庫風格
+                lower_name = style_name.lower()
+                matches = [s for s in AVAILABLE_STYLES if lower_name in s or s in lower_name]
+                normalized_style = matches[0] if matches else lower_name
 
             recommendations[style_name] = {
                 "style_summary": style_intro or f"{style_name} 風格",
@@ -196,7 +219,6 @@ class AIRecommendationService:
                         if p['category'] == category and (p['style'] == normalized_style or p['style'] == 'general')
                     ]
                     if filtered:
-                        # 選價格排序，便宜方案取前 n 件，中等方案取中間，奢華取最貴
                         filtered_sorted = sorted(filtered, key=lambda x: x['price_per_unit'])
                         if plan_name == "便宜方案":
                             selected = filtered_sorted[:1]

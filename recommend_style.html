@@ -43,7 +43,7 @@
 
                             <div class="expand-section" id="expand-{{ forloop.counter }}" style="display:none;">
                                 <div class="recommendations-container">
-                                    {% with product=items.plans.0.products.flooring %}
+                                    {% with product=items.plans.0.items.flooring %}
                                     <div class="recommendation-card">
                                         <span class="recommendation-tag">地板</span>
                                         <div class="recommendation-price">
@@ -57,7 +57,7 @@
                                     </div>
                                     {% endwith %}
 
-                                    {% with product=items.plans.0.products.wallpaper %}
+                                    {% with product=items.plans.0.items.wallpaper_塗料 %}
                                     <div class="recommendation-card">
                                         <span class="recommendation-tag">壁紙/油漆</span>
                                         <div class="recommendation-price">
@@ -71,7 +71,7 @@
                                     </div>
                                     {% endwith %}
 
-                                    {% with product=items.plans.0.products.ceiling %}
+                                    {% with product=items.plans.0.items.ceiling %}
                                     <div class="recommendation-card">
                                         <span class="recommendation-tag">天花板</span>
                                         <div class="recommendation-price">
@@ -97,22 +97,43 @@
         <!-- AI 分析建議 -->
         <div class="style-section" style="margin-top: 30px;">
             <h2>AI 分析與建議</h2>
+            
             <div class="recommendation-details">
                 <div class="detail-label">建議風格：</div>
-                <div class="detail-value">{{ ai_recommendation.style_suggestions|default:"N/A" }}</div>
+                <div class="detail-value">
+                    <ul>
+                    {% for item in ai_recommendation.style_suggestions %}
+                        <li><strong>{{ item.style_name }}</strong>：{{ item.description }}</li>
+                    {% empty %}
+                        <li>N/A</li>
+                    {% endfor %}
+                    </ul>
+                </div>
             </div>
+
             <div class="recommendation-details">
                 <div class="detail-label">空間優化建議：</div>
                 <div class="detail-value">{{ ai_recommendation.space_optimization|default:"N/A"|linebreaksbr }}</div>
             </div>
+
             <div class="recommendation-details">
                 <div class="detail-label">產品重點：</div>
                 <div class="detail-value">{{ ai_recommendation.product_focus|default:"N/A"|linebreaksbr }}</div>
             </div>
+
             <div class="recommendation-details">
                 <div class="detail-label">Gemini 分析 (風格概述)：</div>
-                <div class="detail-value">{{ gemini_analysis|default:"無 AI 詳細分析，請檢查服務連線"|linebreaksbr }}</div>
+                <div class="detail-value">
+                    <ul>
+                    {% for item in gemini_analysis %}
+                        <li><strong>{{ item.style_name }}</strong>：{{ item.description }}</li>
+                    {% empty %}
+                        <li>無 AI 詳細分析，請檢查服務連線</li>
+                    {% endfor %}
+                    </ul>
+                </div>
             </div>
+
             <div class="recommendation-details">
                 <div class="detail-label">總預算：</div>
                 <div class="detail-value">{{ total_budget }}</div>
@@ -126,7 +147,8 @@
             const card = expand.closest('.style-card-container').querySelector('.style-card');
             const icon = card.querySelector('.action-icon');
 
-            if (expand.style.display === 'block') {
+            const isOpen = expand.style.display === 'block';
+            if (isOpen) {
                 expand.classList.remove('show');
                 icon.textContent = '＋';
                 setTimeout(() => {
@@ -135,11 +157,8 @@
                 }, 300);
             } else {
                 expand.style.display = 'block';
-                card.classList.add('expanded');
+                setTimeout(() => expand.classList.add('show'), 10);
                 icon.textContent = '－';
-                setTimeout(() => {
-                    expand.classList.add('show');
-                }, 10);
             }
         }
     </script>

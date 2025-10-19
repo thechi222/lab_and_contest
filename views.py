@@ -72,7 +72,7 @@ def ai_recommend(request):
             'special_requirements': data.get('special_requirements', '').strip(),
         }
 
-        # 呼叫 AI 推薦服務 (所有 AI 分析、產品篩選都在此完成)
+        # 呼叫 AI 推薦服務
         service = AIRecommendationService()
         recommendation_result = service.process_recommendation_request(ai_data)
 
@@ -127,44 +127,61 @@ def recommend(request):
 
     gemini_text = ai_analysis.get('style_suggestions', "無詳細 AI 分析結果") 
 
-    # 處理 recommendations 結構，統一為 dict
+    # --- ✅ 修正風格名稱未知問題 ---
     raw_recommendations = result.get('recommendations', {})
-
     if isinstance(raw_recommendations, list):
-        # AI 可能回 list，使用索引生成 key
-        processed_recommendations = {f"風格{idx+1}": item for idx, item in enumerate(raw_recommendations)}
+        processed_recommendations = {
+            item.get("style_name", f"unknown_{idx+1}"): item
+            for idx, item in enumerate(raw_recommendations)
+        }
     elif isinstance(raw_recommendations, dict):
         processed_recommendations = raw_recommendations
     else:
         processed_recommendations = {}
 
-    # 計算每個風格的總價
+    # 計算每個風格每個方案總價
     for style_name, style_data in processed_recommendations.items():
         if not isinstance(style_data, dict):
             processed_recommendations[style_name] = {}
             continue
-        total_cost = 0
-        for category in ['flooring', 'wallpaper', 'ceiling']:
-            product_list = style_data.get(category)
-            if isinstance(product_list, list) and product_list:
-                first_product = product_list[0]
-                price_per_unit = first_product.get('price_per_unit', 0)
-                quantity = first_product.get('quantity', 1)
+
+        plans = style_data.get('plans', [])
+        for i, plan in enumerate(plans):
+            plan_total_cost = 0
+            items_dict = plan.get('items', {})
+            for category in ['flooring', 'wallpaper_塗料', 'ceiling']:
+                product_info = items_dict.get(category, {})
+                price_per_unit = product_info.get('price_per_unit', 0)
+                quantity = product_info.get('quantity', 1)
                 try:
                     product_price = float(price_per_unit) * float(quantity)
                 except (ValueError, TypeError):
                     product_price = 0
-                style_data[category] = {
+                # 將每個分類資料存回 plan
+                plan[category] = {
                     'price': product_price,
-                    'name': first_product.get('name', '無推薦商品'),
-                    'unit': first_product.get('unit', '件'),
-                    'description': first_product.get('description', '')
+                    'name': product_info.get('name', '無推薦商品'),
+                    'unit': product_info.get('unit', '件'),
+                    'description': product_info.get('description', '')
                 }
-                total_cost += product_price
-            else:
-                style_data[category] = {'price': 0, 'name': '無推薦商品', 'unit': '件', 'description': ''}
-        style_data['total_cost'] = total_cost
+                plan_total_cost += product_price
+            # 將方案總價存回 plan
+            plan['total_cost'] = plan_total_cost
+
+        # 計算風格總價 (取最便宜方案)
+        style_data['total_cost'] = min([p.get('total_cost', float('inf')) for p in plans]) if plans else 0
         style_data['style_summary'] = style_data.get('style_summary', ai_analysis.get('style_suggestions', '無建議'))
+
+    # --- ✅ 選擇最便宜風格當推薦 ---
+    recommended_style_name = None
+    min_price = float('inf')
+    for style_name, style_data in processed_recommendations.items():
+        plans = style_data.get('plans', [])
+        for plan in plans:
+            plan_cost = plan.get('total_cost', float('inf'))
+            if plan_cost < min_price:
+                min_price = plan_cost
+                recommended_style_name = style_name
 
     context = {
         'recommendation_id': result.get('id'),
@@ -178,13 +195,11 @@ def recommend(request):
         'total_cost': total_budget_formatted,
         'ai_status': ai_analysis.get('ai_status', 'completed'),
         'gemini_analysis': gemini_text,
-        # 若要高亮最適合用戶坪數的風格，可自行設定
-        'recommended_style_name': None,  
+        'recommended_style_name': recommended_style_name,  
     }
 
     print(f"渲染 recommend_style.html，推薦結果: {context}")
     return render(request, 'recommend_style.html', context)
-
 
 # ======================================================
 # Google Gemini API 測試
@@ -208,6 +223,7 @@ def gemini_test(request):
     except Exception as e:
         print("Gemini API 呼叫失敗:", e)
         return JsonResponse({"success": False, "error": str(e)}, status=500)
+
 # ======================================================
 # 單個推薦詳情頁面
 # ======================================================
@@ -215,9 +231,7 @@ def recommendation_detail(request, recommendation_id):
     """顯示單個推薦的詳細內容"""
     result = request.session.get('recommendation_result', {})
 
-    # 將 recommendation_id 轉為字串比對，避免類型不一致
     recommendation_id_str = str(recommendation_id)
-
     if not result or str(result.get('id')) != recommendation_id_str:
         print(f"⚠️ 找不到 recommendation_id={recommendation_id} 的資料，跳轉首頁")
         return redirect('index')
