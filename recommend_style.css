@@ -331,3 +331,92 @@ main {
     margin: 5px 0 10px 0;
   }
 }
+
+/* ==================================== */
+/* 三方案區塊樣式  */
+/* ==================================== */
+.plan-section {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+
+.plan-card {
+  flex: 1 1 30%;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 200px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  cursor: pointer;
+}
+
+.plan-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+}
+
+.plan-card h4 {
+  font-size: 18px;
+  font-weight: bold;
+  color: #003366;
+  margin-bottom: 15px;
+}
+
+.plan-price {
+  color: #f79d3d;
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+.plan-details {
+  text-align: left;
+}
+
+.plan-details .detail-label {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 2px;
+}
+
+.plan-details .detail-value {
+  font-size: 14px;
+  color: #8b4513;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+/* 響應式調整 */
+@media (max-width: 768px) {
+  .plan-card {
+    flex: 1 1 100%;
+  }
+}
+/* ==================================== */
+/* 方案價格區分顏色 */
+/* ==================================== */
+.recommendation-card h4 {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+}
+
+.recommendation-card.economy {   /* 經濟型 */
+    border: 2px solid #28a745; /* 綠色 */
+}
+
+.recommendation-card.standard {  /* 標準型 */
+    border: 2px solid #fd7e14; /* 橘色 */
+}
+
+.recommendation-card.luxury {    /* 豪華型 */
+    border: 2px solid #dc3545; /* 紅色 */
+}
