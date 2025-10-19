@@ -44,9 +44,17 @@
                             <!-- 展開區塊：三個方案 -->
                             <div class="expand-section" id="expand-{{ forloop.counter }}" style="display:none;">
                                 <div class="recommendations-container">
-                                    {% for plan in items.plans %}
-                                    <div class="recommendation-card">
-                                        <h4 style="margin-bottom: 10px;">方案 {{ forloop.counter }}</h4>
+                                    {% for plan in items.plans|dictsort:"total_cost" %}
+                                    <div class="recommendation-card 
+                                        {% if forloop.counter == 1 %}economy{% elif forloop.counter == 2 %}standard{% else %}luxury{% endif %}">
+                                        
+                                        <h4>
+                                        {% if forloop.counter == 1 %}經濟型
+                                        {% elif forloop.counter == 2 %}標準型
+                                        {% else %}豪華型
+                                        {% endif %}
+                                        </h4>
+
                                         <div class="plan-total-price" style="margin-bottom: 10px;">
                                             總價: NT$ <span class="amount">{{ plan.total_cost|default:0|intcomma }}</span>
                                         </div>
