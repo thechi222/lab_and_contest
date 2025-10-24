@@ -256,8 +256,11 @@ USE_TZ = True
 # 🌟 靜態檔設定
 # ======================================================
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / "static"]
+STATICFILES_DIRS = [BASE_DIR / "app/static"]
+STATIC_ROOT = BASE_DIR / "staticfiles"        # Render 部署必須
 
+# WhiteNoise 支援
+MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
 # ======================================================
 # 🌟 預設主鍵
 # ======================================================
