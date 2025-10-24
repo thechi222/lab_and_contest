@@ -1,12 +1,17 @@
-# app/urls.py (這個檔案通常需要您手動建立)
+# app/urls.py
 
 from django.urls import path
-from . import views  # 從同一個 App 中引入 views.py 
+from . import views
 
-# 定義應用程式內的 URL 模式
 urlpatterns = [
-    # 🌟 當路徑為根目錄 ('') 時，執行 views.py 裡的 index 函數 🌟
+    # --- 頁面路由 ---
     path('', views.index, name='index'), 
-    # 🌟 推薦頁面路由 🌟
-    path('recommand/', views.recommand, name='recommand'),
+    path('recommend/', views.recommend, name='recommend'),  # 修正這裡
+    path('recommendation/<int:recommendation_id>/', views.recommendation_detail, name='recommendation_detail'),
+    
+    # --- AI 推薦 API ---
+    path('api/ai_recommend/', views.ai_recommend, name='api_ai_recommend_submission'),
+
+    # --- ✅ 新增 Gemini 測試 API (對應 curl 指令) ---
+    path('api/gemini_test/', views.gemini_test, name='api_gemini_test'),
 ]
